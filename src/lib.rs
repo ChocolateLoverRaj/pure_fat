@@ -2,6 +2,13 @@
 
 // See https://wiki.osdev.org/FAT
 
+mod state_machine;
+pub use state_machine::*;
+mod read_file;
+pub use read_file::*;
+mod stream_file;
+pub use stream_file::*;
+
 use core::num::NonZero;
 
 use bitflags::bitflags;
@@ -79,7 +86,7 @@ pub enum FataType {
     ExFat,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct NextClusterError(u32);
 
 impl Bpb {
@@ -141,8 +148,8 @@ impl Bpb {
     }
 
     /// Use this to know how much to read
-    pub fn bytes_per_cluster(&self) -> u64 {
-        u64::from(self.sectors_per_cluster) * u64::from(self.bytes_per_sector.get())
+    pub fn bytes_per_cluster(&self) -> u32 {
+        u32::from(self.sectors_per_cluster) * u32::from(self.bytes_per_sector.get())
     }
 
     /// Returns the position in bytes of where to read the cluster info
@@ -151,6 +158,8 @@ impl Bpb {
             u64::from(self.reserved_sectors.get()) * u64::from(self.bytes_per_sector.get());
         fat_start_bytes + cluster_number as u64 * self.cluster_info_size() as u64
     }
+
+    pub const MAX_CLUSTER_INFO_SIZE: usize = size_of::<U32>();
 
     /// Returns the number of bytes you need to read to get information about the next cluster
     pub fn cluster_info_size(&self) -> usize {
