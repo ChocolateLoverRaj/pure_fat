@@ -1,5 +1,6 @@
 [package]
 name = "pure_fat"
+description = "A super flexible library for parsing FAT file systems"
 version = "1.0.0"
 edition = "2024"
 repository = "https://github.com/ChocolateLoverRaj/pure_fat"
