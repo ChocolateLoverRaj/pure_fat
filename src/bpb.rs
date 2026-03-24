@@ -19,7 +19,7 @@ pub struct Bpb {
     root_directory_entries: U16,
     /// If there are >65535 sectors, this will have a value of `0`, and you should read large sector count instead
     number_of_sectors: U16,
-    /// https://en.wikipedia.org/wiki/Design_of_the_FAT_file_system#BPB20_OFS_0Ah
+    /// <https://en.wikipedia.org/wiki/Design_of_the_FAT_file_system#BPB20_OFS_0Ah>
     media_descriptor_type: u8,
     /// Number of sectors per FAT. FAT12/FAT16 only.
     sectors_per_fat: U16,
@@ -75,7 +75,7 @@ pub enum FataType {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct NextClusterError(u32);
+pub struct NextClusterError(pub u32);
 
 impl Bpb {
     fn total_sectors(&self) -> Option<NonZero<u32>> {
@@ -160,7 +160,7 @@ impl Bpb {
     }
 
     /// Panics if the size of the slice is not equal to [`Self::cluster_info_size`].
-    /// https://en.wikipedia.org/wiki/Design_of_the_FAT_file_system#Cluster_values.
+    /// <https://en.wikipedia.org/wiki/Design_of_the_FAT_file_system#Cluster_values>.
     pub fn next_cluster_number(
         &self,
         cluster_info: &[u8],

@@ -45,7 +45,7 @@ pub struct Cluster {
 
 #[derive(Debug, Clone, Copy)]
 pub enum StreamError {
-    NoNextCluser,
+    NoNextCluster,
     NextCluster(NextClusterError),
 }
 
@@ -114,7 +114,7 @@ impl StateMachine for StreamFile<'_> {
                             *end_of_cluster = false;
                         }
                         Ok(None) => {
-                            self.state = StreamFileState::Done(Err(StreamError::NoNextCluser));
+                            self.state = StreamFileState::Done(Err(StreamError::NoNextCluster));
                         }
                         Err(e) => {
                             self.state = StreamFileState::Done(Err(StreamError::NextCluster(e)));

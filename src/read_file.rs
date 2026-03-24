@@ -57,7 +57,7 @@ impl StateMachine for ReadFile<'_> {
     fn output(&self) -> Self::Output {
         if self.position_in_buffer as u32 == self.len {
             ReadFileOutput::Done
-        } else if self.cluster_file_address + self.bpb.bytes_per_cluster() as u32
+        } else if self.cluster_file_address + self.bpb.bytes_per_cluster()
             > self.start + self.position_in_buffer as u32
         {
             ReadFileOutput::ReadFilePart(ReadFilePart {
@@ -90,7 +90,7 @@ impl StateMachine for ReadFile<'_> {
             ReadFileInput::ReadClusterInfo(cluster_info) => {
                 // TODO: Don't panic
                 self.cluster_number = self.bpb.next_cluster_number(cluster_info).unwrap().unwrap();
-                self.cluster_file_address += self.bpb.bytes_per_cluster() as u32;
+                self.cluster_file_address += self.bpb.bytes_per_cluster();
             }
         }
     }

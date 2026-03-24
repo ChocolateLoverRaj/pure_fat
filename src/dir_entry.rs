@@ -61,9 +61,9 @@ pub struct LongFileNameEntry {
 }
 
 #[derive(Debug, Default)]
-pub struct Date(u16);
+pub struct Date(pub u16);
 #[derive(Debug, Default)]
-pub struct Time(u16);
+pub struct Time(pub u16);
 
 /// A Rusty representation of a directory entry
 #[derive(Debug, Default)]
@@ -92,6 +92,7 @@ pub struct DirEntryParser {
     name: heapless::Vec<heapless::Vec<u16, 13>, 20>,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum ParseEntryOutput {
     KeepReadingToParseCurrentEntry(DirEntryParser),
