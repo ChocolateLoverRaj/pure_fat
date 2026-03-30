@@ -27,6 +27,7 @@
 //! - <https://wiki.osdev.org/FAT>
 //! - <https://en.wikipedia.org/wiki/File_Allocation_Table>
 //! - <https://en.wikipedia.org/wiki/Design_of_the_FAT_file_system>
+//! - <https://people.cs.umass.edu/~liberato/courses/2019-spring-compsci365/lecture-notes/11-fats-and-directory-entries/>
 #![no_std]
 mod state_machine;
 pub use state_machine::*;

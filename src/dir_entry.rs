@@ -5,12 +5,14 @@ use zerocopy::{
     transmute_ref,
 };
 
-pub type DirEntry = [u8; 32];
+pub type DirEntrySlot = [u8; 32];
+
+pub const DIR_SLOT_SIZE: usize = size_of::<DirEntrySlot>();
 
 #[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout)]
 #[repr(C)]
 pub struct DirSector {
-    pub entries: [DirEntry; 16],
+    pub entries: [DirEntrySlot; 16],
 }
 
 /// Directories on FAT12/16/32
@@ -87,21 +89,6 @@ pub struct ParsedDirEntry {
     pub size: u32,
 }
 
-#[derive(Debug, Default)]
-pub struct DirEntryParser {
-    name: heapless::Vec<heapless::Vec<u16, 13>, 20>,
-}
-
-#[allow(clippy::large_enum_variant)]
-#[derive(Debug)]
-pub enum ParseEntryOutput {
-    KeepReadingToParseCurrentEntry(DirEntryParser),
-    /// If the data is `None`, that means this entry was deleted
-    KeepReadingToParseNextEntry(Option<ParsedDirEntry>),
-    /// This entry doesn't exist and there are no more entries after this one
-    DoneReadingEntries,
-}
-
 #[derive(Debug)]
 pub enum ParseEntryError {
     /// File names can be max 255 chars
@@ -123,14 +110,31 @@ bitflags! {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct DirEntryParser {
+    name: heapless::Vec<heapless::Vec<u16, 13>, 20>,
+}
+
+#[derive(Debug)]
+pub enum ProcessSlotOutput {
+    /// An entry was parsed. Create a new parser and read the next slot to continue reading all dir entries.
+    EntryParsed(ParsedDirEntry),
+    /// Continue reading the next slot to process an entry.
+    InProgress(DirEntryParser),
+    /// This slot was empty. Create a new parser and read the next slot.
+    EmptySlot,
+    /// There are no more entiries in the dir. Don't read the next slot.
+    EndOfDir,
+}
+
 impl DirEntryParser {
-    pub fn parse_entry(
+    pub fn process_slot(
         mut self,
-        entry_bytes: &DirEntry,
-    ) -> Result<ParseEntryOutput, ParseEntryError> {
+        slot: &DirEntrySlot,
+    ) -> Result<ProcessSlotOutput, ParseEntryError> {
         Ok({
             // https://people.cs.umass.edu/~liberato/courses/2019-spring-compsci365/lecture-notes/11-fats-and-directory-entries/
-            let entry: &Fat12DirEntry = transmute_ref!(entry_bytes);
+            let entry: &Fat12DirEntry = transmute_ref!(slot);
             let attributes = DirEntryAttributes::from_bits_retain(entry.attributes);
             if attributes.contains(
                 DirEntryAttributes::READ_ONLY
@@ -142,7 +146,7 @@ impl DirEntryParser {
                 self.name
                     .push({
                         let mut chunk = heapless::Vec::default();
-                        let entry: &LongFileNameEntry = transmute_ref!(entry_bytes);
+                        let entry: &LongFileNameEntry = transmute_ref!(slot);
                         'iter_slices: for slice in [
                             entry.chars_0_4.as_slice(),
                             entry.chars_5_10.as_slice(),
@@ -162,34 +166,54 @@ impl DirEntryParser {
                         chunk
                     })
                     .map_err(|_| ParseEntryError::LfnOverflow)?;
-                ParseEntryOutput::KeepReadingToParseCurrentEntry(self)
+                ProcessSlotOutput::InProgress(self)
             } else if entry.file_name[0] == 0xe5 {
-                ParseEntryOutput::KeepReadingToParseNextEntry(None)
+                ProcessSlotOutput::EmptySlot
             } else if entry.file_name[0] == 0x00 {
-                ParseEntryOutput::DoneReadingEntries
+                ProcessSlotOutput::EndOfDir
             } else {
                 let volume_id = attributes.contains(DirEntryAttributes::VOLUME_ID);
-                ParseEntryOutput::KeepReadingToParseNextEntry(Some(ParsedDirEntry {
+                ProcessSlotOutput::EntryParsed(ParsedDirEntry {
                     name: if !self.name.is_empty() {
                         // Long file name entries are in reverse order for some reason
                         self.name.into_iter().rev().flatten().collect()
                     } else {
                         let mut name = heapless::Vec::default();
-                        for &char in &entry.file_name[..8] {
-                            if char != b' ' {
+                        if volume_id {
+                            let mut trim_end = None;
+                            for (index, char) in entry.file_name.iter().copied().enumerate() {
+                                trim_end = if char == b' ' { Some(index) } else { None };
                                 name.push(u16::from(char)).unwrap();
-                            } else {
-                                break;
                             }
-                        }
-                        if !volume_id {
+                            if let Some(trim_end) = trim_end {
+                                name.truncate(trim_end);
+                            }
+                        } else {
+                            {
+                                let mut trim_end = None;
+                                for (index, char) in
+                                    entry.file_name[..8].iter().copied().enumerate()
+                                {
+                                    trim_end = if char == b' ' { Some(index) } else { None };
+                                    name.push(u16::from(char)).unwrap();
+                                }
+                                if let Some(trim_end) = trim_end {
+                                    name.truncate(trim_end);
+                                }
+                            }
                             name.push(u16::from(b'.')).unwrap();
-                        }
-                        for &char in &entry.file_name[8..] {
-                            if char != b' ' {
-                                name.push(u16::from(char)).unwrap();
-                            } else {
-                                break;
+                            let name_len_after_dot = name.len();
+                            {
+                                let mut trim_end = None;
+                                for (index, char) in
+                                    entry.file_name[8..].iter().copied().enumerate()
+                                {
+                                    trim_end = if char == b' ' { Some(index) } else { None };
+                                    name.push(u16::from(char)).unwrap();
+                                }
+                                if let Some(trim_end) = trim_end {
+                                    name.truncate(name_len_after_dot + trim_end);
+                                }
                             }
                         }
                         name
@@ -213,7 +237,7 @@ impl DirEntryParser {
                         entry.cluster_number_high[1],
                     ]),
                     size: entry.size.get(),
-                }))
+                })
             }
         })
     }

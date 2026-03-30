@@ -76,7 +76,7 @@ impl StateMachine for StreamFile<'_> {
                     }))
                 } else {
                     Ok(StreamOutput::Cluster(Cluster {
-                        address: bpb.cluster_start(*cluster_number),
+                        address: bpb.cluster_position(*cluster_number),
                         len: min(bpb.bytes_per_cluster(), *file_size - *position),
                     }))
                 }

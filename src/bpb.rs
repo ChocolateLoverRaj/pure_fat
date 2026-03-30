@@ -115,7 +115,7 @@ impl Bpb {
         }
     }
 
-    pub fn root_dir_start_cluster(&self) -> u32 {
+    pub fn root_dir_cluster_number(&self) -> u32 {
         match self.fat_type() {
             FataType::Fat12 | FataType::Fat16 => 0,
             FataType::Fat32 | FataType::ExFat => {
@@ -126,7 +126,7 @@ impl Bpb {
     }
 
     /// Returns the position in **bytes** of the start of a sector based on a sector number.
-    pub fn cluster_start(&self, cluster_number: u32) -> u64 {
+    pub fn cluster_position(&self, cluster_number: u32) -> u64 {
         let fat_start_sector = u32::from(self.reserved_sectors.get());
         let data_start_sector =
             fat_start_sector + u32::from(self.number_of_tables) * self.sectors_per_fat();
@@ -146,8 +146,6 @@ impl Bpb {
             u64::from(self.reserved_sectors.get()) * u64::from(self.bytes_per_sector.get());
         fat_start_bytes + cluster_number as u64 * self.cluster_info_size() as u64
     }
-
-    pub const MAX_CLUSTER_INFO_SIZE: usize = size_of::<U32>();
 
     /// Returns the number of bytes you need to read to get information about the next cluster
     pub fn cluster_info_size(&self) -> usize {
@@ -183,3 +181,5 @@ impl Bpb {
         }
     }
 }
+
+pub const MAX_CLUSTER_INFO_SIZE: usize = size_of::<U32>();

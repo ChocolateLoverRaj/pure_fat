@@ -62,7 +62,7 @@ impl StateMachine for ReadFile<'_> {
         {
             ReadFileOutput::ReadFilePart(ReadFilePart {
                 address_in_buffer: self.position_in_buffer,
-                address_in_partition: self.bpb.cluster_start(self.cluster_number)
+                address_in_partition: self.bpb.cluster_position(self.cluster_number)
                     + (self.start + self.position_in_buffer as u32 - self.cluster_file_address)
                         as u64,
                 copy_len: min(
