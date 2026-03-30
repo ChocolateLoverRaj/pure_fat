@@ -30,12 +30,12 @@ pub struct Bpb {
     extension_bytes: [u8; 0x1DC],
 }
 
-/// FAT 12 and FAT 16
-#[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout)]
-#[repr(C)]
-pub struct ExtendedBootRecordFat12 {
-    todo: [u8; 0x1DC],
-}
+// /// FAT 12 and FAT 16
+// #[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout)]
+// #[repr(C)]
+// pub struct ExtendedBootRecordFat12 {
+//     todo: [u8; 0x1DC],
+// }
 
 #[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout)]
 #[repr(C)]
@@ -60,11 +60,11 @@ pub struct ExtendedBootRecordFat32 {
     bootable_partition_signature: U16,
 }
 
-#[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout)]
-#[repr(C)]
-pub struct ExtendedBootRecordExFat {
-    todo: [u8; 0x1DC],
-}
+// #[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout)]
+// #[repr(C)]
+// pub struct ExtendedBootRecordExFat {
+//     todo: [u8; 0x1DC],
+// }
 
 #[derive(Debug)]
 pub enum FataType {
