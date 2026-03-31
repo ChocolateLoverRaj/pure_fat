@@ -30,6 +30,11 @@ fn main() {
                 ProcessSlotOutput::EntryParsed(entry) => {
                     let name = heapless::String::<255>::from_utf16(&entry.name).unwrap();
                     println!("{name:?} {entry:?}");
+
+                    if entry.directory {
+                        println!("  TODO");
+                    }
+
                     parser = Default::default();
                 }
                 ProcessSlotOutput::EmptySlot => {

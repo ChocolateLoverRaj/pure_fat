@@ -29,13 +29,9 @@
 //! - <https://en.wikipedia.org/wiki/Design_of_the_FAT_file_system>
 //! - <https://people.cs.umass.edu/~liberato/courses/2019-spring-compsci365/lecture-notes/11-fats-and-directory-entries/>
 #![no_std]
-mod state_machine;
-pub use state_machine::*;
-mod read_file;
-pub use read_file::*;
-mod stream_file;
-pub use stream_file::*;
 mod bpb;
 pub use bpb::*;
 mod dir_entry;
 pub use dir_entry::*;
+mod read_file;
+pub use read_file::*;
