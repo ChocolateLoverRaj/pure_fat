@@ -1,4 +1,4 @@
-use core::slice;
+use core::{num::NonZero, slice};
 
 use bitflags::bitflags;
 use zerocopy::{
@@ -9,7 +9,7 @@ use zerocopy::{
 
 pub type DirEntrySlot = [u8; 32];
 
-pub const DIR_SLOT_SIZE: usize = size_of::<DirEntrySlot>();
+pub const DIR_SLOT_SIZE: NonZero<u32> = NonZero::new(size_of::<DirEntrySlot>() as u32).unwrap();
 
 #[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout)]
 #[repr(C)]

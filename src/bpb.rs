@@ -10,24 +10,24 @@ use zerocopy::{
 #[derive(Debug, FromBytes, IntoBytes, Immutable, KnownLayout)]
 #[repr(C)]
 pub struct Bpb {
-    instructions: [u8; 3],
-    oem_identifier: [u8; 8],
-    bytes_per_sector: U16,
-    sectors_per_cluster: u8,
-    reserved_sectors: U16,
-    number_of_tables: u8,
-    root_directory_entries: U16,
+    pub(crate) instructions: [u8; 3],
+    pub(crate) oem_identifier: [u8; 8],
+    pub(crate) bytes_per_sector: U16,
+    pub(crate) sectors_per_cluster: u8,
+    pub(crate) reserved_sectors: U16,
+    pub(crate) number_of_tables: u8,
+    pub(crate) root_directory_entries: U16,
     /// If there are >65535 sectors, this will have a value of `0`, and you should read large sector count instead
-    number_of_sectors: U16,
+    pub(crate) number_of_sectors: U16,
     /// <https://en.wikipedia.org/wiki/Design_of_the_FAT_file_system#BPB20_OFS_0Ah>
-    media_descriptor_type: u8,
+    pub(crate) media_descriptor_type: u8,
     /// Number of sectors per FAT. FAT12/FAT16 only.
-    sectors_per_fat: U16,
-    sectors_per_track: U16,
-    heads_or_sides: U16,
-    hidden_sectors: U32,
-    large_sector_count: U32,
-    extension_bytes: [u8; 0x1DC],
+    pub(crate) sectors_per_fat: U16,
+    pub(crate) sectors_per_track: U16,
+    pub(crate) heads_or_sides: U16,
+    pub(crate) hidden_sectors: U32,
+    pub(crate) large_sector_count: U32,
+    pub(crate) extension_bytes: [u8; 0x1DC],
 }
 
 // /// FAT 12 and FAT 16
@@ -66,8 +66,8 @@ pub struct ExtendedBootRecordFat32 {
 //     todo: [u8; 0x1DC],
 // }
 
-#[derive(Debug)]
-pub enum FataType {
+#[derive(Debug, Clone, Copy)]
+pub enum FatType {
     Fat12,
     Fat16,
     Fat32,
@@ -98,27 +98,27 @@ impl Bpb {
         }
     }
 
-    pub fn fat_type(&self) -> FataType {
+    pub fn fat_type(&self) -> FatType {
         let data_sectors = self.total_sectors().unwrap().get()
             - (u32::from(self.reserved_sectors.get())
                 + (u32::from(self.number_of_tables) * self.sectors_per_fat())
                 + u32::from(self.root_dir_sectors()));
         let total_clusters = data_sectors / u32::from(self.sectors_per_cluster);
         if self.bytes_per_sector.get() == 0 {
-            FataType::ExFat
+            FatType::ExFat
         } else if total_clusters < 4085 {
-            FataType::Fat12
+            FatType::Fat12
         } else if total_clusters < 65525 {
-            FataType::Fat16
+            FatType::Fat16
         } else {
-            FataType::Fat32
+            FatType::Fat32
         }
     }
 
     pub fn root_dir_cluster_number(&self) -> u32 {
         match self.fat_type() {
-            FataType::Fat12 | FataType::Fat16 => 0,
-            FataType::Fat32 | FataType::ExFat => {
+            FatType::Fat12 | FatType::Fat16 => 0,
+            FatType::Fat32 | FatType::ExFat => {
                 let fat32_info: &ExtendedBootRecordFat32 = transmute_ref!(&self.extension_bytes);
                 fat32_info.root_dir_cluster_number.get()
             }
@@ -140,6 +140,9 @@ impl Bpb {
         u32::from(self.sectors_per_cluster) * u32::from(self.bytes_per_sector.get())
     }
 
+    pub(crate) fn fat_table_start(&self) -> u64 {
+        u64::from(self.reserved_sectors.get()) * u64::from(self.bytes_per_sector.get())
+    }
     /// Returns the position in bytes of where to read the cluster info
     pub fn cluster_info_start(&self, cluster_number: u32) -> u64 {
         let fat_start_bytes =
@@ -151,9 +154,9 @@ impl Bpb {
     pub fn cluster_info_size(&self) -> usize {
         match self.fat_type() {
             // Technically for FAT 12 you only need 1.5 bytes, but this means we need 2
-            FataType::Fat12 | FataType::Fat16 => size_of::<U16>(),
-            FataType::Fat32 => size_of::<U32>(),
-            FataType::ExFat => todo!(),
+            FatType::Fat12 | FatType::Fat16 => size_of::<U16>(),
+            FatType::Fat32 => size_of::<U32>(),
+            FatType::ExFat => todo!(),
         }
     }
 
@@ -164,9 +167,9 @@ impl Bpb {
         cluster_info: &[u8],
     ) -> Result<Option<u32>, NextClusterError> {
         match self.fat_type() {
-            FataType::Fat12 => todo!("calculate if upper or lower 1.5 bytes should be used"),
-            FataType::Fat16 => todo!(),
-            FataType::Fat32 => {
+            FatType::Fat12 => todo!("calculate if upper or lower 1.5 bytes should be used"),
+            FatType::Fat16 => todo!(),
+            FatType::Fat32 => {
                 let info = u32::from_le_bytes(cluster_info.try_into().unwrap()) & 0xFFFFFFF;
                 match info {
                     // End of chain marker
@@ -177,9 +180,9 @@ impl Bpb {
                     info => Err(NextClusterError(info)),
                 }
             }
-            FataType::ExFat => todo!(),
+            FatType::ExFat => todo!(),
         }
     }
 }
 
-pub const MAX_CLUSTER_INFO_SIZE: usize = size_of::<U32>();
+pub const MAX_CLUSTER_INFO_SIZE: NonZero<u32> = NonZero::new(size_of::<U32>() as u32).unwrap();
