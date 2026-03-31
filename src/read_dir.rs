@@ -22,8 +22,8 @@ pub enum Next {
 
 #[derive(Debug)]
 pub struct ProcessDataOutput {
-    dir_entry: Option<ParsedDirEntry>,
-    next: Next,
+    pub dir_entry: Option<ParsedDirEntry>,
+    pub next: Next,
 }
 
 #[derive(Debug)]
@@ -43,13 +43,17 @@ impl ReadDir {
         }
     }
 
+    pub fn new_root(bpb: ParsedBpb) -> Self {
+        Self::new(bpb, bpb.root_dir_start_cluster_number())
+    }
+
     pub const MAX_READ_BUFFER_LEN: NonZero<u32> = DIR_SLOT_SIZE;
 
     pub fn read_instruction(&self) -> PartitionSegment {
         match self.slot_index {
             Some(slot_index) => PartitionSegment {
                 position: self.bpb.cluster_position(self.cluster_number)
-                    + (slot_index * self.bpb.cluster_info_size().get()) as u64,
+                    + (slot_index * DIR_SLOT_SIZE.get()) as u64,
                 len: DIR_SLOT_SIZE,
             },
             None => PartitionSegment {
