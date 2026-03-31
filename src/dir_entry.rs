@@ -71,8 +71,13 @@ pub struct Time(pub u16);
 
 pub enum ParsedType {
     /// A label for the partition, such as "MY SD CARD". Max 11 ASCII chars.
-    VolumeId,
+    VolumeId {
+        /// ASCII
+        name: heapless::Vec<u8, 11>,
+    },
     File {
+        /// This is UTF-8
+        name: heapless::Vec<u16, 255>,
         hidden: bool,
         system: bool,
         archive: bool,
@@ -85,10 +90,31 @@ pub enum ParsedType {
         first_cluster_number: u32,
         size: u32,
     },
+    Dir {
+        name: heapless::Vec<u16, 255>,
+        hidden: bool,
+        system: bool,
+        archive: bool,
+        creation_date: Date,
+        creation_time: Time,
+        creatime_time_within_second: u8,
+        last_accessed_date: Date,
+        last_modified_date: Date,
+        last_modified_time: Time,
+        first_cluster_number: u32,
+    },
     /// The `.` entry.
-    CurrentDir,
+    CurrentDir {
+        creation_date: Date,
+        creation_time: Time,
+        creatime_time_within_second: u8,
+    },
     /// The `..` entry.
-    ParentDir,
+    ParentDir {
+        creation_date: Date,
+        creation_time: Time,
+        creatime_time_within_second: u8,
+    },
 }
 
 /// A Rusty representation of a directory entry
