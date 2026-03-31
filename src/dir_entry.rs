@@ -1,3 +1,5 @@
+use core::slice;
+
 use bitflags::bitflags;
 use zerocopy::{
     FromBytes, Immutable, IntoBytes, KnownLayout,
@@ -110,6 +112,13 @@ bitflags! {
     }
 }
 
+bitflags! {
+    pub struct WindowsNtFlags: u8 {
+        const LOWERCASE_NAME = 1 << 3;
+        const LOWERCASE_EXTENSION = 1 << 4;
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct DirEntryParser {
     name: heapless::Vec<heapless::Vec<u16, 13>, 20>,
@@ -182,34 +191,74 @@ impl DirEntryParser {
                         if volume_id {
                             let mut trim_end = None;
                             for (index, char) in entry.file_name.iter().copied().enumerate() {
-                                trim_end = if char == b' ' { Some(index) } else { None };
+                                if char == b' ' {
+                                    if trim_end.is_none() {
+                                        trim_end = Some(index);
+                                    }
+                                } else {
+                                    trim_end = None;
+                                };
                                 name.push(u16::from(char)).unwrap();
                             }
                             if let Some(trim_end) = trim_end {
                                 name.truncate(trim_end);
                             }
                         } else {
+                            let windows_nt_flags =
+                                WindowsNtFlags::from_bits_retain(entry.reserved_for_windows_nt);
                             {
                                 let mut trim_end = None;
                                 for (index, char) in
                                     entry.file_name[..8].iter().copied().enumerate()
                                 {
-                                    trim_end = if char == b' ' { Some(index) } else { None };
-                                    name.push(u16::from(char)).unwrap();
+                                    if char == b' ' {
+                                        if trim_end.is_none() {
+                                            trim_end = Some(index);
+                                        }
+                                    } else {
+                                        trim_end = None;
+                                    };
+                                    let char = char::from(char);
+                                    let char = if windows_nt_flags
+                                        .contains(WindowsNtFlags::LOWERCASE_NAME)
+                                    {
+                                        char.to_ascii_lowercase()
+                                    } else {
+                                        char
+                                    };
+                                    let mut char_u16 = Default::default();
+                                    char.encode_utf16(slice::from_mut(&mut char_u16));
+                                    name.push(char_u16).unwrap();
                                 }
                                 if let Some(trim_end) = trim_end {
                                     name.truncate(trim_end);
                                 }
                             }
-                            name.push(u16::from(b'.')).unwrap();
-                            let name_len_after_dot = name.len();
-                            {
+                            if entry.file_name[8] != b' ' {
+                                name.push(u16::from(b'.')).unwrap();
+                                let name_len_after_dot = name.len();
                                 let mut trim_end = None;
                                 for (index, char) in
                                     entry.file_name[8..].iter().copied().enumerate()
                                 {
-                                    trim_end = if char == b' ' { Some(index) } else { None };
-                                    name.push(u16::from(char)).unwrap();
+                                    if char == b' ' {
+                                        if trim_end.is_none() {
+                                            trim_end = Some(index);
+                                        }
+                                    } else {
+                                        trim_end = None;
+                                    };
+                                    let char = char::from(char);
+                                    let char = if windows_nt_flags
+                                        .contains(WindowsNtFlags::LOWERCASE_EXTENSION)
+                                    {
+                                        char.to_ascii_lowercase()
+                                    } else {
+                                        char
+                                    };
+                                    let mut char_u16 = Default::default();
+                                    char.encode_utf16(slice::from_mut(&mut char_u16));
+                                    name.push(char_u16).unwrap();
                                 }
                                 if let Some(trim_end) = trim_end {
                                     name.truncate(name_len_after_dot + trim_end);
