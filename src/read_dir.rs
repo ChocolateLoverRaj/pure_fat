@@ -20,6 +20,15 @@ pub enum Next {
     Done,
 }
 
+impl From<Next> for Option<ReadDir> {
+    fn from(value: Next) -> Self {
+        match value {
+            Next::Continue(read_dir) => Some(read_dir),
+            Next::Done => None,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct ProcessDataOutput {
     pub dir_entry: Option<ParsedDirEntry>,
@@ -34,10 +43,10 @@ pub enum ProcessDataError {
 }
 
 impl ReadDir {
-    pub fn new(bpb: ParsedBpb, start_cluster_number: u32) -> Self {
+    pub fn new(bpb: ParsedBpb, first_cluster_number: u32) -> Self {
         Self {
             bpb,
-            cluster_number: start_cluster_number,
+            cluster_number: first_cluster_number,
             slot_index: Some(0),
             dir_entry_parser: DirEntryParser::default(),
         }

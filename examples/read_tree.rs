@@ -1,14 +1,15 @@
 use std::{
     fs::File,
     io::{Read, Seek, SeekFrom},
-    num::NonZero,
 };
 
+use hex_display::HexDisplayExt;
 use pure_fat::{
     Bpb, Chars, FileSizeAndCluster, ParsedBpb, ParsedDirEntry,
     read_dir::{Next, ProcessDataOutput, ReadDir},
     read_file::{NextOutput, PartitionSegment, ReadFile},
 };
+use sha2::{Digest, Sha256};
 use zerocopy::transmute;
 
 fn main() {
@@ -21,25 +22,39 @@ fn main() {
     let cluster_size = bpb.cluster_size();
     println!("Cluster size: {cluster_size} B");
     println!("FAT type: {fat_type:?}");
-    let mut read_dir = ReadDir::new_root(bpb);
-    loop {
+    // let mut read_dir = ReadDir::new_root(bpb);
+    let mut read_dir_stack = vec![Next::Continue(ReadDir::new_root(bpb))];
+    while let Some(next) = read_dir_stack.pop() {
+        let indent_level = read_dir_stack.len();
+        let print_indents = || {
+            for _ in 0..indent_level {
+                print!("  ");
+            }
+        };
+        let read_dir = match next {
+            Next::Continue(read_dir) => read_dir,
+            Next::Done => continue,
+        };
         let PartitionSegment { position, len } = read_dir.read_instruction();
         file.seek(SeekFrom::Start(position)).unwrap();
         let mut buffer = [Default::default(); ReadDir::MAX_READ_BUFFER_LEN.get() as usize];
         let buffer = &mut buffer[..len.get() as usize];
         file.read_exact(buffer).unwrap();
         let ProcessDataOutput { dir_entry, next } = read_dir.process_data(buffer).unwrap();
+        read_dir_stack.push(next);
         if let Some(entry) = dir_entry {
             const N: usize = ParsedDirEntry::MAX_UTF8_LEN;
             let name = entry
                 .chars()
                 .map(Result::unwrap)
                 .collect::<heapless::String<N>>();
-            println!("{name:?} {entry:?}");
-
             match entry {
+                ParsedDirEntry::VolumeId { name: _ } => {
+                    print_indents();
+                    println!("{name:?} (volume id)");
+                }
                 ParsedDirEntry::File {
-                    name,
+                    name: _,
                     hidden,
                     system,
                     archive,
@@ -50,41 +65,74 @@ fn main() {
                     last_modified_date,
                     last_modified_time,
                     size_and_cluster,
-                } => match size_and_cluster {
-                    FileSizeAndCluster::Empty => {
-                        println!("  <empty>");
-                    }
-                    FileSizeAndCluster::NotEmpty {
-                        size,
-                        first_cluster_number,
-                    } => {
-                        let mut read_file = ReadFile::new(bpb, first_cluster_number, size);
-                        loop {
-                            let segment = read_file.read_segment();
-                            println!("  {segment:?}");
-                            let mut buffer = [Default::default();
-                                ReadFile::NEXT_INSTRUCTIONS_MAX_BUFFER_LEN.get() as usize];
-                            let PartitionSegment { position, len } = read_file.next_instructions();
-                            let buffer = &mut buffer[..len.get() as usize];
-                            file.seek(SeekFrom::Start(position)).unwrap();
-                            file.read_exact(buffer).unwrap();
-                            match read_file.next(buffer).unwrap() {
-                                NextOutput::Continue(new_read_file) => {
-                                    read_file = new_read_file;
+                } => {
+                    print_indents();
+                    println!("{name:?} (file)");
+                    match size_and_cluster {
+                        FileSizeAndCluster::Empty => {
+                            print_indents();
+                            println!("  <empty>");
+                        }
+                        FileSizeAndCluster::NotEmpty {
+                            size,
+                            first_cluster_number,
+                        } => {
+                            let mut read_file = ReadFile::new(bpb, first_cluster_number, size);
+                            let mut hasher = Sha256::new();
+                            loop {
+                                let PartitionSegment { position, len } = read_file.read_segment();
+                                let mut buffer = [Default::default(); 512];
+                                let mut bytes_read = 0;
+                                file.seek(SeekFrom::Start(position)).unwrap();
+                                while bytes_read < len.get() {
+                                    let bytes_to_read =
+                                        (len.get() - bytes_read).min(buffer.len() as u32);
+                                    let buffer = &mut buffer[..bytes_to_read as usize];
+                                    file.read_exact(buffer).unwrap();
+                                    hasher.update(buffer);
+                                    bytes_read += bytes_to_read;
                                 }
-                                NextOutput::Done => break,
+
+                                let mut buffer = [Default::default();
+                                    ReadFile::NEXT_INSTRUCTIONS_MAX_BUFFER_LEN.get() as usize];
+                                let PartitionSegment { position, len } =
+                                    read_file.next_instructions();
+                                let buffer = &mut buffer[..len.get() as usize];
+                                file.seek(SeekFrom::Start(position)).unwrap();
+                                file.read_exact(buffer).unwrap();
+                                match read_file.next(buffer).unwrap() {
+                                    NextOutput::Continue(new_read_file) => {
+                                        read_file = new_read_file;
+                                    }
+                                    NextOutput::Done => break,
+                                }
                             }
+                            print_indents();
+                            let digest = hasher.finalize();
+                            let digest = digest.hex();
+                            println!("  sha256: {digest}");
                         }
                     }
-                },
+                }
+                ParsedDirEntry::Dir {
+                    name: _,
+                    hidden,
+                    system,
+                    archive,
+                    creation_date,
+                    creation_time,
+                    creation_time_within_second,
+                    last_accessed_date,
+                    last_modified_date,
+                    last_modified_time,
+                    first_cluster_number,
+                } => {
+                    print_indents();
+                    println!("{name:?} (dir)");
+                    read_dir_stack.push(Next::Continue(ReadDir::new(bpb, first_cluster_number)));
+                }
                 _ => {}
             }
-        }
-        match next {
-            Next::Continue(new_read_dir) => {
-                read_dir = new_read_dir;
-            }
-            Next::Done => break,
         }
     }
 }

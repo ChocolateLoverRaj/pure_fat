@@ -26,4 +26,7 @@ do
 done
 
 mmd -i $IMG_NAME ::test_dir
+mcopy -i $IMG_NAME ./test.txt "::test_dir/a"
+mcopy -i $IMG_NAME ./empty.txt "::test_dir/b"
+
 mdir -i fat_32.bin
