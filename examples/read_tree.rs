@@ -5,7 +5,7 @@ use std::{
 };
 
 use pure_fat::{
-    Bpb, ParsedBpb,
+    Bpb, Chars, FileSizeAndCluster, ParsedBpb, ParsedDirEntry,
     read_dir::{Next, ProcessDataOutput, ReadDir},
     read_file::{NextOutput, PartitionSegment, ReadFile},
 };
@@ -30,32 +30,54 @@ fn main() {
         file.read_exact(buffer).unwrap();
         let ProcessDataOutput { dir_entry, next } = read_dir.process_data(buffer).unwrap();
         if let Some(entry) = dir_entry {
-            let name = heapless::String::<255>::from_utf16(&entry.name).unwrap();
+            const N: usize = ParsedDirEntry::MAX_UTF8_LEN;
+            let name = entry
+                .chars()
+                .map(Result::unwrap)
+                .collect::<heapless::String<N>>();
             println!("{name:?} {entry:?}");
 
-            if entry.directory {
-                println!("  TODO");
-            } else if !entry.directory
-                && !entry.volume_id
-                && let Some(file_len) = NonZero::new(entry.size)
-            {
-                let mut read_file = ReadFile::new(bpb, entry.first_cluster_number, file_len);
-                loop {
-                    let segment = read_file.read_segment();
-                    println!("  {segment:?}");
-                    let mut buffer = [Default::default();
-                        ReadFile::NEXT_INSTRUCTIONS_MAX_BUFFER_LEN.get() as usize];
-                    let PartitionSegment { position, len } = read_file.next_instructions();
-                    let buffer = &mut buffer[..len.get() as usize];
-                    file.seek(SeekFrom::Start(position)).unwrap();
-                    file.read_exact(buffer).unwrap();
-                    match read_file.next(buffer).unwrap() {
-                        NextOutput::Continue(new_read_file) => {
-                            read_file = new_read_file;
-                        }
-                        NextOutput::Done => break,
+            match entry {
+                ParsedDirEntry::File {
+                    name,
+                    hidden,
+                    system,
+                    archive,
+                    creation_date,
+                    creation_time,
+                    creation_time_within_second,
+                    last_accessed_date,
+                    last_modified_date,
+                    last_modified_time,
+                    size_and_cluster,
+                } => match size_and_cluster {
+                    FileSizeAndCluster::Empty => {
+                        println!("  <empty>");
                     }
-                }
+                    FileSizeAndCluster::NotEmpty {
+                        size,
+                        first_cluster_number,
+                    } => {
+                        let mut read_file = ReadFile::new(bpb, first_cluster_number, size);
+                        loop {
+                            let segment = read_file.read_segment();
+                            println!("  {segment:?}");
+                            let mut buffer = [Default::default();
+                                ReadFile::NEXT_INSTRUCTIONS_MAX_BUFFER_LEN.get() as usize];
+                            let PartitionSegment { position, len } = read_file.next_instructions();
+                            let buffer = &mut buffer[..len.get() as usize];
+                            file.seek(SeekFrom::Start(position)).unwrap();
+                            file.read_exact(buffer).unwrap();
+                            match read_file.next(buffer).unwrap() {
+                                NextOutput::Continue(new_read_file) => {
+                                    read_file = new_read_file;
+                                }
+                                NextOutput::Done => break,
+                            }
+                        }
+                    }
+                },
+                _ => {}
             }
         }
         match next {

@@ -9,7 +9,7 @@ mcopy -i $IMG_NAME ./test.txt "::TEST.TXT"
 
 # For testing different file names
 mcopy -i $IMG_NAME ./empty.txt "::A.B"
-mcopy -i $IMG_NAME ./empty.txt "::LONGNAME"
+mcopy -i $IMG_NAME ./empty.txt "::A_really_long_file_name_which_should_take_up_multiple_long_file_name_slots"
 mcopy -i $IMG_NAME ./empty.txt "::.HIDDEN"
 mcopy -i $IMG_NAME ./empty.txt "::A B.C"
 mcopy -i $IMG_NAME ./empty.txt "::A.B C"
