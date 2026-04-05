@@ -28,7 +28,17 @@
 //! - <https://en.wikipedia.org/wiki/File_Allocation_Table>
 //! - <https://en.wikipedia.org/wiki/Design_of_the_FAT_file_system>
 //! - <https://people.cs.umass.edu/~liberato/courses/2019-spring-compsci365/lecture-notes/11-fats-and-directory-entries/>
+//!
+//! # Usage
+//! Read the first 512 B of the partition. Get a [`Bpb`] using [`zerocopy`].
+//!
+//! Parse the BPB using [`ParsedBpb::try_from`].
+//!
+//! Read the root dir using [`read_dir::ReadDir`].
+//!
+//! Read files using [`read_file::ReadFile`].
 #![no_std]
+pub use zerocopy;
 mod bpb;
 pub use bpb::*;
 mod dir_entry;
@@ -36,4 +46,6 @@ pub use dir_entry::*;
 mod parsed_bpb;
 pub mod read_file;
 pub use parsed_bpb::*;
+mod partition_segment;
+pub use partition_segment::*;
 pub mod read_dir;

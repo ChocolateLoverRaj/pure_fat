@@ -1,8 +1,8 @@
 use core::num::NonZero;
 
-use crate::{MAX_CLUSTER_INFO_SIZE, NextClusterError, ParsedBpb};
+use crate::{MAX_CLUSTER_INFO_SIZE, NextClusterError, ParsedBpb, PartitionSegment};
 
-/// The way you read a file
+/// Start by calling [`ReadFile::new`]. Then you can read a segment of the file, which you can get with [`ReadFile::read_segment`]. To continue reading the file, call [`ReadFile::next_instructions`], read that segment, and then input the data to [`ReadFile::next`].
 #[derive(Debug)]
 pub struct ReadFile {
     bpb: ParsedBpb,
@@ -20,14 +20,6 @@ pub enum NextOutput {
 pub enum NextError {
     NextClusterError(NextClusterError),
     NoNextCluster,
-}
-
-/// Just a position and a length of a segment of a partition (the position starts from the start
-/// of the partition). Not required to be aligned to or a multiple of anything.
-#[derive(Debug)]
-pub struct PartitionSegment {
-    pub position: u64,
-    pub len: NonZero<u32>,
 }
 
 impl ReadFile {

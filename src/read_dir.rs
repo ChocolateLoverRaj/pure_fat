@@ -2,9 +2,10 @@ use core::num::NonZero;
 
 use crate::{
     DIR_SLOT_SIZE, DirEntryParser, NextClusterError, ParseEntryError, ParsedBpb, ParsedDirEntry,
-    ProcessSlotOutput, read_file::PartitionSegment,
+    PartitionSegment, ProcessSlotOutput,
 };
 
+/// To read a dir, first create a [`ReadDir`] with [`ReadDir::new`] or [`ReadDir::new_root`]. Then call [`ReadDir::read_instruction`] to know what part of the partition to read. Read the segment and input it to [`ReadDir::process_data`]. If the output contains a [`ReadDir`], repeat the process to continue reading more entries.
 #[derive(Debug)]
 pub struct ReadDir {
     bpb: ParsedBpb,

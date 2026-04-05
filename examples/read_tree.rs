@@ -5,9 +5,9 @@ use std::{
 
 use hex_display::HexDisplayExt;
 use pure_fat::{
-    Bpb, Chars, FileSizeAndCluster, ParsedBpb, ParsedDirEntry,
+    Bpb, Chars, FileSizeAndCluster, ParsedBpb, ParsedDirEntry, PartitionSegment,
     read_dir::{ProcessDataOutput, ReadDir},
-    read_file::{NextOutput, PartitionSegment, ReadFile},
+    read_file::{NextOutput, ReadFile},
 };
 use sha2::{Digest, Sha256};
 use zerocopy::transmute;
