@@ -1,13 +1,16 @@
 use core::num::NonZero;
 
-use zerocopy::little_endian::{U16, U32};
+use zerocopy::{
+    little_endian::{U16, U32},
+    transmute_ref,
+};
 
-use crate::{Bpb, FatType, NextClusterError};
+use crate::{Bpb, ExtendedBootRecordFat32};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ParsedBpb {
     fat_type: FatType,
-    /// THe position (in bytes) of the File Attributes Table
+    /// The position (in bytes) of the File Attributes Table
     fat_table_position: u64,
     /// The position of the first cluster
     clusters_position: u64,
@@ -18,7 +21,10 @@ pub struct ParsedBpb {
 #[derive(Debug)]
 pub enum FromBpbError {
     ZeroSectorsPerCluster,
+    // TODO: This means it's ExFAT. Instead of treating it as an error we should handle ExFAT.
     ZeroBytesPerSector,
+    ZeroTotalSectors,
+    ZeroSectorsPerFat,
 }
 
 impl TryFrom<Bpb> for ParsedBpb {
@@ -29,18 +35,73 @@ impl TryFrom<Bpb> for ParsedBpb {
             NonZero::new(value.sectors_per_cluster).ok_or(FromBpbError::ZeroSectorsPerCluster)?;
         let bytes_per_sector =
             NonZero::new(value.bytes_per_sector.get()).ok_or(FromBpbError::ZeroBytesPerSector)?;
+        let total_sectors = NonZero::new(u32::from(value.number_of_sectors.get()))
+            .or(NonZero::new(value.large_sector_count.get()))
+            .ok_or(FromBpbError::ZeroTotalSectors)?;
+        let sectors_per_fat = if let Some(seectors_per_fat) =
+            NonZero::new(value.sectors_per_fat.get())
+        {
+            seectors_per_fat.into()
+        } else {
+            let fat32_info: &ExtendedBootRecordFat32 = transmute_ref!(&value.extension_bytes);
+            NonZero::new(fat32_info.sectors_per_fat.get()).ok_or(FromBpbError::ZeroSectorsPerFat)?
+        };
+
+        let fat_type = {
+            let root_dir_sectors = value
+                .root_directory_entries
+                .get()
+                .div_ceil(bytes_per_sector.get());
+            let data_sectors = total_sectors.get()
+                - (u32::from(value.reserved_sectors.get())
+                    + (u32::from(value.number_of_tables) * sectors_per_fat.get())
+                    + u32::from(root_dir_sectors));
+            let total_clusters = data_sectors / u32::from(sectors_per_cluster.get());
+            if total_clusters < 4085 {
+                FatType::Fat12
+            } else if total_clusters < 65525 {
+                FatType::Fat16
+            } else {
+                FatType::Fat32
+            }
+        };
 
         Ok(Self {
-            fat_type: value.fat_type(),
-            fat_table_position: value.fat_table_start(),
-            clusters_position: value.cluster_position(2),
-            root_dir_cluster_number: value.root_dir_cluster_number(),
+            fat_type,
+            fat_table_position: {
+                u64::from(value.reserved_sectors.get()) * u64::from(bytes_per_sector.get())
+            },
+            clusters_position: {
+                let fat_start_sector = u32::from(value.reserved_sectors.get());
+                let data_start_sector =
+                    fat_start_sector + u32::from(value.number_of_tables) * sectors_per_fat.get();
+                u64::from(data_start_sector) * u64::from(bytes_per_sector.get())
+            },
+            root_dir_cluster_number: match fat_type {
+                FatType::Fat12 | FatType::Fat16 => 0,
+                FatType::Fat32 | FatType::ExFat => {
+                    let fat32_info: &ExtendedBootRecordFat32 =
+                        transmute_ref!(&value.extension_bytes);
+                    fat32_info.root_dir_cluster_number.get()
+                }
+            },
             bytes_per_cluster: NonZero::<u32>::from(sectors_per_cluster)
                 .checked_mul(bytes_per_sector.into())
                 .unwrap(),
         })
     }
 }
+
+#[derive(Debug, Clone, Copy)]
+pub enum FatType {
+    Fat12,
+    Fat16,
+    Fat32,
+    ExFat,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct NextClusterError(pub u32);
 
 impl ParsedBpb {
     pub fn fat_type(&self) -> FatType {
@@ -102,3 +163,5 @@ impl ParsedBpb {
         }
     }
 }
+
+pub const MAX_CLUSTER_INFO_SIZE: NonZero<u32> = NonZero::new(size_of::<U32>() as u32).unwrap();
