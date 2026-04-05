@@ -206,6 +206,7 @@ impl Deref for LongFileName {
 }
 
 /// Name for files and directories.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FileName {
     Short(ShortFileName),
@@ -221,12 +222,8 @@ impl Chars for FileName {
         let mut i = 0;
         iter::from_fn(move || {
             let r = match self {
-                Self::Short(name) => name
-                    .chars()
-                    .skip(i)
-                    .next()
-                    .map(|result| Ok(result.unwrap())),
-                Self::Long(name) => name.chars().skip(i).next(),
+                Self::Short(name) => name.chars().nth(i).map(|result| Ok(result.unwrap())),
+                Self::Long(name) => name.chars().nth(i),
             };
             i += 1;
             r
@@ -307,83 +304,17 @@ impl Chars for ParsedDirEntry {
         let mut i = 0;
         iter::from_fn(move || {
             let r = match self {
-                Self::VolumeId { name } => name
-                    .chars()
-                    .skip(i)
-                    .next()
-                    .map(|result| Ok(result.unwrap())),
-                Self::Dir {
-                    name,
-                    hidden,
-                    system,
-                    archive,
-                    creation_date,
-                    creation_time,
-                    creation_time_within_second,
-                    last_accessed_date,
-                    last_modified_date,
-                    last_modified_time,
-                    first_cluster_number,
-                } => name.chars().skip(i).next(),
-                Self::File {
-                    name,
-                    hidden,
-                    system,
-                    archive,
-                    creation_date,
-                    creation_time,
-                    creation_time_within_second,
-                    last_accessed_date,
-                    last_modified_date,
-                    last_modified_time,
-                    size_and_cluster,
-                } => name.chars().skip(i).next(),
-                Self::CurrentDir {
-                    creation_date,
-                    creation_time,
-                    creation_time_within_second,
-                    first_cluster_number,
-                    hidden,
-                    system,
-                    archive,
-                } => ".".chars().map(Ok).skip(i).next(),
-                Self::ParentDir {
-                    creation_date,
-                    creation_time,
-                    creation_time_within_second,
-                    first_cluster_number,
-                    hidden,
-                    system,
-                    archive,
-                } => "..".chars().map(Ok).skip(i).next(),
+                Self::VolumeId { name } => name.chars().nth(i).map(|result| Ok(result.unwrap())),
+                Self::Dir { name, .. } => name.chars().nth(i),
+                Self::File { name, .. } => name.chars().nth(i),
+                Self::CurrentDir { .. } => ".".chars().map(Ok).nth(i),
+                Self::ParentDir { .. } => "..".chars().map(Ok).nth(i),
             };
             i += 1;
             r
         })
     }
 }
-
-// /// A Rusty representation of a directory entry
-// #[derive(Debug, Default)]
-// pub struct ParsedDirEntry {
-//     /// The name is supposed to be null-terminated, but here we store the length as a usize instead
-//     pub name: heapless::Vec<u16, 255>,
-//     pub read_only: bool,
-//     pub hidden: bool,
-//     pub system: bool,
-//     pub volume_id: bool,
-//     pub directory: bool,
-//     pub archive: bool,
-//     pub creation_date: Date,
-//     pub creation_time: Time,
-//     pub creation_time_within_second: u8,
-//     pub last_accessed_date: Date,
-//     pub last_modified_date: Date,
-//     pub last_modified_time: Time,
-//     pub first_cluster_number: u32,
-//     /// The size of the file in bytes.
-//     pub size: u32,
-// }
 
 #[derive(Debug)]
 pub enum ParseEntryError {
@@ -418,6 +349,7 @@ pub struct DirEntryParser {
     name: heapless::Vec<heapless::Vec<u16, 13>, 20>,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum ProcessSlotOutput {
     /// An entry was parsed. Create a new parser and read the next slot to continue reading all dir entries.
@@ -649,111 +581,6 @@ impl DirEntryParser {
                         }
                     },
                 )
-                // ProcessSlotOutput::EntryParsed( ParsedDirEntry {
-                //     name: if !self.name.is_empty() {
-                //         // Long file name entries are in reverse order for some reason
-                //         self.name.into_iter().rev().flatten().collect()
-                //     } else {
-                //         let mut name = heapless::Vec::default();
-                //         if volume_id {
-                //             let mut trim_end = None;
-                //             for (index, char) in entry.file_name.iter().copied().enumerate() {
-                //                 if char == b' ' {
-                //                     if trim_end.is_none() {
-                //                         trim_end = Some(index);
-                //                     }
-                //                 } else {
-                //                     trim_end = None;
-                //                 };
-                //                 name.push(u16::from(char)).unwrap();
-                //             }
-                //             if let Some(trim_end) = trim_end {
-                //                 name.truncate(trim_end);
-                //             }
-                //         } else {
-                //             let windows_nt_flags =
-                //                 WindowsNtFlags::from_bits_retain(entry.reserved_for_windows_nt);
-                //             {
-                //                 let mut trim_end = None;
-                //                 for (index, char) in
-                //                     entry.file_name[..8].iter().copied().enumerate()
-                //                 {
-                //                     if char == b' ' {
-                //                         if trim_end.is_none() {
-                //                             trim_end = Some(index);
-                //                         }
-                //                     } else {
-                //                         trim_end = None;
-                //                     };
-                //                     let char = char::from(char);
-                //                     let char = if windows_nt_flags
-                //                         .contains(WindowsNtFlags::LOWERCASE_NAME)
-                //                     {
-                //                         char.to_ascii_lowercase()
-                //                     } else {
-                //                         char
-                //                     };
-                //                     let mut char_u16 = Default::default();
-                //                     char.encode_utf16(slice::from_mut(&mut char_u16));
-                //                     name.push(char_u16).unwrap();
-                //                 }
-                //                 if let Some(trim_end) = trim_end {
-                //                     name.truncate(trim_end);
-                //                 }
-                //             }
-                //             if entry.file_name[8] != b' ' {
-                //                 name.push(u16::from(b'.')).unwrap();
-                //                 let name_len_after_dot = name.len();
-                //                 let mut trim_end = None;
-                //                 for (index, char) in
-                //                     entry.file_name[8..].iter().copied().enumerate()
-                //                 {
-                //                     if char == b' ' {
-                //                         if trim_end.is_none() {
-                //                             trim_end = Some(index);
-                //                         }
-                //                     } else {
-                //                         trim_end = None;
-                //                     };
-                //                     let char = char::from(char);
-                //                     let char = if windows_nt_flags
-                //                         .contains(WindowsNtFlags::LOWERCASE_EXTENSION)
-                //                     {
-                //                         char.to_ascii_lowercase()
-                //                     } else {
-                //                         char
-                //                     };
-                //                     let mut char_u16 = Default::default();
-                //                     char.encode_utf16(slice::from_mut(&mut char_u16));
-                //                     name.push(char_u16).unwrap();
-                //                 }
-                //                 if let Some(trim_end) = trim_end {
-                //                     name.truncate(name_len_after_dot + trim_end);
-                //                 }
-                //             }
-                //         }
-                //         name
-                //     },
-                //     read_only: attributes.contains(DirEntryAttributes::READ_ONLY),
-                //     hidden: attributes.contains(DirEntryAttributes::HIDDEN),
-                //     system: attributes.contains(DirEntryAttributes::SYSTEM),
-                //     volume_id,
-                //     directory: attributes.contains(DirEntryAttributes::DIRECTORY),
-                //     archive: attributes.contains(DirEntryAttributes::ARCHIVE),
-                //     creation_date: Date(entry.creation_date.get()),
-                //     creation_time: Time(entry.creation_time.get()),
-                //     creation_time_within_second: entry.creation_time_within_second,
-                //     last_accessed_date: Date(entry.last_accessed_date.get()),
-                //     last_modified_date: Date(entry.last_modification_date.get()),
-                //     last_modified_time: Time(entry.last_modification_time.get()),
-                //     first_cluster_number: u32::from_le_bytes([
-                //         entry.cluster_number_low[0],
-                //         entry.cluster_number_low[1],
-                //         entry.cluster_number_high[0],
-                //         entry.cluster_number_high[1],
-                //     ]),
-                //     size: entry.size.get(),
-                // })
             }
         })
     }

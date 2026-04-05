@@ -6,7 +6,7 @@ use std::{
 use hex_display::HexDisplayExt;
 use pure_fat::{
     Bpb, Chars, FileSizeAndCluster, ParsedBpb, ParsedDirEntry,
-    read_dir::{Next, ProcessDataOutput, ReadDir},
+    read_dir::{ProcessDataOutput, ReadDir},
     read_file::{NextOutput, PartitionSegment, ReadFile},
 };
 use sha2::{Digest, Sha256};
@@ -22,18 +22,18 @@ fn main() {
     let cluster_size = bpb.cluster_size();
     println!("Cluster size: {cluster_size} B");
     println!("FAT type: {fat_type:?}");
-    // let mut read_dir = ReadDir::new_root(bpb);
-    let mut read_dir_stack = vec![Next::Continue(ReadDir::new_root(bpb))];
+    // We store `None` elements to properly keep track of the indent level
+    let mut read_dir_stack = vec![Some(ReadDir::new_root(bpb))];
     while let Some(next) = read_dir_stack.pop() {
+        let read_dir = match next {
+            Some(read_dir) => read_dir,
+            None => continue,
+        };
         let indent_level = read_dir_stack.len();
         let print_indents = || {
             for _ in 0..indent_level {
                 print!("  ");
             }
-        };
-        let read_dir = match next {
-            Next::Continue(read_dir) => read_dir,
-            Next::Done => continue,
         };
         let PartitionSegment { position, len } = read_dir.read_instruction();
         file.seek(SeekFrom::Start(position)).unwrap();
@@ -55,16 +55,8 @@ fn main() {
                 }
                 ParsedDirEntry::File {
                     name: _,
-                    hidden,
-                    system,
-                    archive,
-                    creation_date,
-                    creation_time,
-                    creation_time_within_second,
-                    last_accessed_date,
-                    last_modified_date,
-                    last_modified_time,
                     size_and_cluster,
+                    ..
                 } => {
                     print_indents();
                     println!("{name:?} (file)");
@@ -116,20 +108,12 @@ fn main() {
                 }
                 ParsedDirEntry::Dir {
                     name: _,
-                    hidden,
-                    system,
-                    archive,
-                    creation_date,
-                    creation_time,
-                    creation_time_within_second,
-                    last_accessed_date,
-                    last_modified_date,
-                    last_modified_time,
                     first_cluster_number,
+                    ..
                 } => {
                     print_indents();
                     println!("{name:?} (dir)");
-                    read_dir_stack.push(Next::Continue(ReadDir::new(bpb, first_cluster_number)));
+                    read_dir_stack.push(Some(ReadDir::new(bpb, first_cluster_number)));
                 }
                 _ => {}
             }

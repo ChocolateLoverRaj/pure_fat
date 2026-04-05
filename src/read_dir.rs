@@ -15,24 +15,10 @@ pub struct ReadDir {
 }
 
 #[derive(Debug)]
-pub enum Next {
-    Continue(ReadDir),
-    Done,
-}
-
-impl From<Next> for Option<ReadDir> {
-    fn from(value: Next) -> Self {
-        match value {
-            Next::Continue(read_dir) => Some(read_dir),
-            Next::Done => None,
-        }
-    }
-}
-
-#[derive(Debug)]
 pub struct ProcessDataOutput {
     pub dir_entry: Option<ParsedDirEntry>,
-    pub next: Next,
+    /// If `Some`, that means there could be more dir entries and you should continue reading the next slot. If `None`, that means that there are no more dir entries and you should stop reading this dir.
+    pub next: Option<ReadDir>,
 }
 
 #[derive(Debug)]
@@ -88,7 +74,7 @@ impl ReadDir {
                         self.dir_entry_parser = new_parser;
                         ProcessDataOutput {
                             dir_entry: None,
-                            next: Next::Continue(self),
+                            next: Some(self),
                         }
                     }
                     ProcessSlotOutput::EntryParsed(parsed_dir_entry) => {
@@ -99,7 +85,7 @@ impl ReadDir {
                         self.dir_entry_parser = Default::default();
                         ProcessDataOutput {
                             dir_entry: Some(parsed_dir_entry),
-                            next: Next::Continue(self),
+                            next: Some(self),
                         }
                     }
                     ProcessSlotOutput::EmptySlot => {
@@ -110,25 +96,25 @@ impl ReadDir {
                         }
                         ProcessDataOutput {
                             dir_entry: None,
-                            next: Next::Continue(self),
+                            next: Some(self),
                         }
                     }
                     ProcessSlotOutput::EndOfDir => ProcessDataOutput {
                         dir_entry: None,
-                        next: Next::Done,
+                        next: None,
                     },
                 }
             }
             None => {
                 self.cluster_number = self
                     .bpb
-                    .next_cluster_number(data.try_into().unwrap())
+                    .next_cluster_number(data)
                     .map_err(ProcessDataError::NextCluster)?
                     .ok_or(ProcessDataError::NoNextCluster)?;
                 self.slot_index = Some(0);
                 ProcessDataOutput {
                     dir_entry: None,
-                    next: Next::Continue(self),
+                    next: Some(self),
                 }
             }
         })
