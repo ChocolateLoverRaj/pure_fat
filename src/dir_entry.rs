@@ -65,8 +65,11 @@ pub struct LongFileNameEntry {
     chars_11_12: [U16; 2],
 }
 
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, Default)]
 pub struct Date(pub u16);
+
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, Default)]
 pub struct Time(pub u16);
 
@@ -84,6 +87,7 @@ pub trait Chars {
 /// Encoded with OEM code pages.
 /// Most of the times it is valid ASCII, but if it has non-ASCII characters, then they are encoded in a certain code page.
 /// The default code page is 437 (United States). But the FAT partition doesn't tell you which code page it is.
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug)]
 pub struct VolumeIdName(heapless::Vec<u8, 11>);
 
@@ -137,6 +141,7 @@ impl Deref for VolumeIdName {
 
 /// A short file name is encoded in code page format (and is typically valid ASCII).
 /// This library inserts the "." character into the name.
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ShortFileName(heapless::Vec<u8, 12>);
 
@@ -177,6 +182,7 @@ impl Deref for ShortFileName {
 }
 
 /// A long file name is (supposed to be) formatted as UTF-16, with a max of u16 * 255.
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct LongFileName(heapless::Vec<u16, 255>);
 
@@ -207,6 +213,7 @@ impl Deref for LongFileName {
 
 /// Name for files and directories.
 #[allow(clippy::large_enum_variant)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FileName {
     Short(ShortFileName),
@@ -231,6 +238,7 @@ impl Chars for FileName {
     }
 }
 
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug)]
 pub enum FileSizeAndCluster {
     /// The file size is `0`, so it doesn't have any clusters.
@@ -243,6 +251,7 @@ pub enum FileSizeAndCluster {
 }
 
 /// A Rusty representation of a directory entry.
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug)]
 pub enum ParsedDirEntry {
     /// A label for the partition, such as "MY SD CARD". Only present in the root dir. Always all caps.
